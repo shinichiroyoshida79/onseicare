@@ -37,7 +37,7 @@
             gap: 10px;
             flex-wrap: wrap;
         }
-        button {
+        button, .link-btn {
             background-color: #4CAF50;
             color: white;
             border: none;
@@ -46,11 +46,13 @@
             border-radius: 50px;
             cursor: pointer;
             transition: background-color 0.3s, transform 0.1s;
+            text-decoration: none; /* リンクの下線を消す */
+            display: inline-block;
         }
-        button:hover {
+        button:hover, .link-btn:hover {
             background-color: #45a049;
         }
-        button:active {
+        button:active, .link-btn:active {
             transform: scale(0.98);
         }
         button.recording {
@@ -64,6 +66,13 @@
         }
         #copy-btn:hover {
             background-color: #0b7dda;
+        }
+        /* ケアプランデータ作成リンク用の色（オレンジ系） */
+        #careplan-link {
+            background-color: #FF9800;
+        }
+        #careplan-link:hover {
+            background-color: #F57C00;
         }
         #result {
             margin-top: 30px;
@@ -94,6 +103,11 @@
     <div class="btn-group">
         <button id="toggle-btn">録音開始</button>
         <button id="copy-btn">テキストをコピー</button>
+        <a href="https://gemini.google.com/gem/1MOV7zo3brQ66ry0e9Yq2Rhrly9nzydMK?usp=sharing" 
+           target="_blank" 
+           rel="noopener noreferrer" 
+           class="link-btn" 
+           id="careplan-link">ケアプランデータ作成</a>
     </div>
     
     <div id="result">ここに文字起こしされたテキストが表示されます...</div>
@@ -142,7 +156,7 @@
         toggleBtn.addEventListener('click', () => {
             if (isRecording) {
                 recognition.stop();
-                copyToClipboard(); // 【追加】録音停止時に自動でコピーを実行
+                copyToClipboard(); // 録音停止時に自動でコピーを実行
             } else {
                 recognition.start();
             }
