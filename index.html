@@ -14,7 +14,7 @@
             margin: 0;
         }
         .container {
-            max-width: 600px;
+            max-width: 700px;
             margin: 0 auto;
             background: #fff;
             padding: 30px;
@@ -41,39 +41,37 @@
             background-color: #4CAF50;
             color: white;
             border: none;
-            padding: 15px 30px;
-            font-size: 1.1rem;
+            padding: 12px 24px;
+            font-size: 1rem;
             border-radius: 50px;
             cursor: pointer;
             transition: background-color 0.3s, transform 0.1s;
-            text-decoration: none; /* リンクの下線を消す */
-            display: inline-block;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
         }
         button:hover, .link-btn:hover {
-            background-color: #45a049;
+            opacity: 0.9;
         }
         button:active, .link-btn:active {
             transform: scale(0.98);
         }
+        
+        /* 録音ボタンの状態 */
         button.recording {
             background-color: #d9534f;
         }
-        button.recording:hover {
-            background-color: #c9302c;
-        }
-        #copy-btn {
-            background-color: #2196F3;
-        }
-        #copy-btn:hover {
-            background-color: #0b7dda;
-        }
-        /* ケアプランデータ作成リンク用の色（オレンジ系） */
-        #careplan-link {
-            background-color: #FF9800;
-        }
-        #careplan-link:hover {
-            background-color: #F57C00;
-        }
+        
+        /* 各ボタンの色分け */
+        #copy-btn { background-color: #607d8b; } /* グレー系 */
+        
+        /* アセスメント作成（青） */
+        #assessment-link { background-color: #2196F3; }
+        
+        /* ケアプランCSV（オレンジ） */
+        #csv-link { background-color: #FF9800; }
+
         #result {
             margin-top: 30px;
             padding: 20px;
@@ -86,12 +84,8 @@
             line-height: 1.6;
             white-space: pre-wrap;
         }
-        .final-text {
-            color: #000;
-        }
-        .interim-text {
-            color: #999;
-        }
+        .final-text { color: #000; }
+        .interim-text { color: #999; }
     </style>
 </head>
 <body>
@@ -103,11 +97,12 @@
     <div class="btn-group">
         <button id="toggle-btn">録音開始</button>
         <button id="copy-btn">テキストをコピー</button>
-        <a href="https://gemini.google.com/gem/1MOV7zo3brQ66ry0e9Yq2Rhrly9nzydMK?usp=sharing" 
-           target="_blank" 
-           rel="noopener noreferrer" 
-           class="link-btn" 
-           id="careplan-link">ケアプランデータ作成</a>
+        
+        <a href="https://gemini.google.com/gem/19NLRpiGMud8mwiH8T5wmMG4YFsw_bUHC?usp=sharing" 
+           target="_blank" rel="noopener noreferrer" class="link-btn" id="assessment-link">アセスメント作成</a>
+           
+        <a href="https://gemini.google.com/gem/1_CThdo3gexbPOTARcjarW6K9v7csTDkG?usp=sharing" 
+           target="_blank" rel="noopener noreferrer" class="link-btn" id="csv-link">ケアプランCSV</a>
     </div>
     
     <div id="result">ここに文字起こしされたテキストが表示されます...</div>
@@ -120,7 +115,6 @@
         alert("お使いのブラウザは音声認識に対応していません。Google Chromeをご利用ください。");
     } else {
         const recognition = new SpeechRecognition();
-        
         recognition.lang = 'ja-JP';
         recognition.interimResults = true;
         recognition.continuous = true;
@@ -133,44 +127,31 @@
         const statusDiv = document.getElementById('status');
         const resultDiv = document.getElementById('result');
 
-        // クリップボードにコピーする関数
         const copyToClipboard = () => {
-            if (!finalText.trim()) return; // テキストが空の場合は何もしない
-            
+            if (!finalText.trim()) return;
             navigator.clipboard.writeText(finalText).then(() => {
-                // コピー成功時の視覚的フィードバック
                 const originalText = copyBtn.textContent;
-                copyBtn.textContent = '✅ コピーしました！';
-                copyBtn.style.backgroundColor = '#4CAF50';
-                
-                setTimeout(() => {
-                    copyBtn.textContent = originalText;
-                    copyBtn.style.backgroundColor = ''; // 元の色に戻す
-                }, 2000);
-            }).catch(err => {
-                console.error('クリップボードへのコピーに失敗しました:', err);
+                copyBtn.textContent = '✅ コピー完了';
+                setTimeout(() => { copyBtn.textContent = originalText; }, 2000);
             });
         };
 
-        // 録音ボタンの処理
         toggleBtn.addEventListener('click', () => {
             if (isRecording) {
                 recognition.stop();
-                copyToClipboard(); // 録音停止時に自動でコピーを実行
+                copyToClipboard();
             } else {
                 recognition.start();
             }
         });
 
-        // コピーボタンの処理（手動）
         copyBtn.addEventListener('click', copyToClipboard);
 
         recognition.onstart = () => {
             isRecording = true;
-            toggleBtn.textContent = '録音停止 (停止時に自動コピー)';
+            toggleBtn.textContent = '録音停止 (自動コピー)';
             toggleBtn.classList.add('recording');
-            statusDiv.textContent = '🔴 録音中... 話しかけてください';
-            statusDiv.style.color = '#d9534f';
+            statusDiv.textContent = '🔴 録音中...';
         };
 
         recognition.onend = () => {
@@ -178,12 +159,10 @@
             toggleBtn.textContent = '録音開始';
             toggleBtn.classList.remove('recording');
             statusDiv.textContent = 'マイクの準備ができています';
-            statusDiv.style.color = '#333';
         };
 
         recognition.onresult = (event) => {
             let interimText = '';
-            
             for (let i = event.resultIndex; i < event.results.length; i++) {
                 if (event.results[i].isFinal) {
                     finalText += event.results[i][0].transcript + '\n';
@@ -191,18 +170,13 @@
                     interimText = event.results[i][0].transcript;
                 }
             }
-            
-            resultDiv.innerHTML = 
-                '<span class="final-text">' + finalText + '</span>' + 
-                '<span class="interim-text">' + interimText + '</span>';
+            resultDiv.innerHTML = '<span class="final-text">' + finalText + '</span>' + 
+                                 '<span class="interim-text">' + interimText + '</span>';
         };
 
         recognition.onerror = (event) => {
-            console.error('音声認識エラー:', event.error);
-            statusDiv.textContent = 'エラーが発生しました: ' + event.error;
+            statusDiv.textContent = 'エラー: ' + event.error;
             isRecording = false;
-            toggleBtn.textContent = '録音開始';
-            toggleBtn.classList.remove('recording');
         };
     }
 </script>
