@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>簡易音声認識アプリ（自動コピー付き）</title>
+    <style>
+        body {
+            font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', Meiryo, sans-serif;
+            background-color: #f4f7f6;
+            color: #333;
+            text-align: center;
+            padding: 20px;
+            margin: 0;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: #fff;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            font-size: 1.5rem;
+            color: #4a4a4a;
+        }
+        #status {
+            font-weight: bold;
+            color: #d9534f;
+            margin-bottom: 20px;
+            height: 20px;
+        }
+        .btn-group {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 1.1rem;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: background-color 0.3s, transform 0.1s;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        button:active {
+            transform: scale(0.98);
+        }
+        button.recording {
+            background-color: #d9534f;
+        }
+        button.recording:hover {
+            background-color: #c9302c;
+        }
+        #copy-btn {
+            background-color: #2196F3;
+        }
+        #copy-btn:hover {
+            background-color: #0b7dda;
+        }
+        #result {
+            margin-top: 30px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            min-height: 150px;
+            text-align: left;
+            background-color: #fafafa;
+            font-size: 1.1rem;
+            line-height: 1.6;
+            white-space: pre-wrap;
+        }
+        .final-text {
+            color: #000;
+        }
+        .interim-text {
+            color: #999;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>📝 簡易音声認識アプリ</h1>
+    <div id="status">マイクの準備ができています</div>
+    
+    <div class="btn-group">
+        <button id="toggle-btn">録音開始</button>
+        <button id="copy-btn">テキストをコピー</button>
+    </div>
+    
+    <div id="result">ここに文字起こしされたテキストが表示されます...</div>
+</div>
+
+<script>
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    
+    if (!SpeechRecognition) {
+        alert("お使いのブラウザは音声認識に対応していません。Google Chromeをご利用ください。");
+    } else {
+        const recognition = new SpeechRecognition();
+        
+        recognition.lang = 'ja-JP';
+        recognition.interimResults = true;
+        recognition.continuous = true;
+        
+        let isRecording = false;
+        let finalText = '';
+
+        const toggleBtn = document.getElementById('toggle-btn');
+        const copyBtn = document.getElementById('copy-btn');
+        const statusDiv = document.getElementById('status');
+        const resultDiv = document.getElementById('result');
+
+        // クリップボードにコピーする関数
+        const copyToClipboard = () => {
+            if (!finalText.trim()) return; // テキストが空の場合は何もしない
+            
+            navigator.clipboard.writeText(finalText).then(() => {
+                // コピー成功時の視覚的フィードバック
+                const originalText = copyBtn.textContent;
+                copyBtn.textContent = '✅ コピーしました！';
+                copyBtn.style.backgroundColor = '#4CAF50';
+                
+                setTimeout(() => {
+                    copyBtn.textContent = originalText;
+                    copyBtn.style.backgroundColor = ''; // 元の色に戻す
+                }, 2000);
+            }).catch(err => {
+                console.error('クリップボードへのコピーに失敗しました:', err);
+            });
+        };
+
+        // 録音ボタンの処理
+        toggleBtn.addEventListener('click', () => {
+            if (isRecording) {
+                recognition.stop();
+                copyToClipboard(); // 【追加】録音停止時に自動でコピーを実行
+            } else {
+                recognition.start();
+            }
+        });
+
+        // コピーボタンの処理（手動）
+        copyBtn.addEventListener('click', copyToClipboard);
+
+        recognition.onstart = () => {
+            isRecording = true;
+            toggleBtn.textContent = '録音停止 (停止時に自動コピー)';
+            toggleBtn.classList.add('recording');
+            statusDiv.textContent = '🔴 録音中... 話しかけてください';
+            statusDiv.style.color = '#d9534f';
+        };
+
+        recognition.onend = () => {
+            isRecording = false;
+            toggleBtn.textContent = '録音開始';
+            toggleBtn.classList.remove('recording');
+            statusDiv.textContent = 'マイクの準備ができています';
+            statusDiv.style.color = '#333';
+        };
+
+        recognition.onresult = (event) => {
+            let interimText = '';
+            
+            for (let i = event.resultIndex; i < event.results.length; i++) {
+                if (event.results[i].isFinal) {
+                    finalText += event.results[i][0].transcript + '\n';
+                } else {
+                    interimText = event.results[i][0].transcript;
+                }
+            }
+            
+            resultDiv.innerHTML = 
+                '<span class="final-text">' + finalText + '</span>' + 
+                '<span class="interim-text">' + interimText + '</span>';
+        };
+
+        recognition.onerror = (event) => {
+            console.error('音声認識エラー:', event.error);
+            statusDiv.textContent = 'エラーが発生しました: ' + event.error;
+            isRecording = false;
+            toggleBtn.textContent = '録音開始';
+            toggleBtn.classList.remove('recording');
+        };
+    }
+</script>
+
+</body>
+</html>
