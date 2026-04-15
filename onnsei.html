@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI介護アセスメント・フル機能版</title>
+    <style>
+        body { font-family: 'Helvetica Neue', Arial, sans-serif; background-color: #f4f7f6; color: #333; margin: 0; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; background: #fff; padding: 30px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        h1 { font-size: 1.5rem; color: #4a4a4a; text-align: center; }
+        .settings { background-color: #eef2f5; padding: 20px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #dcdcdc; }
+        .setting-group { margin-bottom: 15px; }
+        label { font-weight: bold; display: block; margin-bottom: 5px; color: #444; }
+        input[type="password"], input[type="text"] { width: 100%; padding: 10px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; font-size: 1rem; }
+        .note { margin: 5px 0 0; color: #666; font-size: 0.85rem; }
+        #status { font-weight: bold; color: #d9534f; margin-bottom: 20px; text-align: center; height: 20px; }
+        .btn-group { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; }
+        button { border: none; padding: 15px 20px; font-size: 1rem; border-radius: 8px; cursor: pointer; transition: 0.2s; font-weight: bold; color: white; min-width: 150px; }
+        #toggle-btn { background-color: #4CAF50; }
+        #toggle-btn.recording { background-color: #d9534f; }
+        #ai-btn { background-color: #673AB7; display: none; }
+        #link-btn { background-color: #4285F4; display: none; }
+        .box { margin-top: 20px; padding: 15px; border: 1px solid #ddd; border-radius: 8px; min-height: 100px; background-color: #fafafa; white-space: pre-wrap; line-height: 1.6; }
+        .box-title { font-weight: bold; margin-bottom: 10px; color: #555; border-bottom: 2px solid #ddd; padding-bottom: 5px; }
+        .interim-text { color: #999; }
+        .loader { border: 3px solid #f3f3f3; border-top: 3px solid #fff; border-radius: 50%; width: 16px; height: 16px; animation: spin 1s linear infinite; display: inline-block; vertical-align: middle; margin-left: 8px; display: none; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>📋 AI介護アセスメント支援</h1>
+    
+    <div class="settings">
+        <div class="setting-group">
+            <label for="api-key">🔑 Gemini APIキー</label>
+            <input type="password" id="api-key" placeholder="APIキーを入力（このアプリ内で分類する場合に必要）">
+        </div>
+        <div class="setting-group">
+            <label for="mask-keywords">🛡️ 匿名化キーワード（名前など）</label>
+            <input type="text" id="mask-keywords" placeholder="例: 山田, 太郎, 渋谷区 (カンマ区切り)">
+        </div>
+    </div>
+
+    <div id="status">マイクの準備ができています</div>
+    
+    <div class="btn-group">
+        <button id="toggle-btn">🎤 録音開始</button>
+        <button id="ai-btn">✨ この画面で分類 <div id="loader" class="loader"></div></button>
+        <button id="link-btn">🚀 コピーしてGeminiリンクを開く</button>
+    </div>
+    
+    <div class="box">
+        <div class="box-title">🗣️ 文字起こし結果（生データ）</div>
+        <div id="result">ここに文字起こしされたテキストが表示されます...</div>
+    </div>
+
+    <div class="box" id="ai-result-box" style="background-color: #f3e5f5; border-color: #ce93d8; display: none;">
+        <div class="box-title">📊 アセスメント分類結果（AI出力）</div>
+        <div id="ai-result"></div>
+    </div>
+</div>
+
+<script>
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const geminiLink = "https://gemini.google.com/gem/1MOV7zo3brQ66ry0e9Yq2Rhrly9nzydMK?usp=sharing";
+    let recognition;
+    let isRecording = false;
+    let finalText = '';
+
+    const toggleBtn = document.getElementById('toggle-btn');
+    const aiBtn = document.getElementById('ai-btn');
+    const linkBtn = document.getElementById('link-btn');
+    const statusDiv = document.getElementById('status');
+    const resultDiv = document.getElementById('result');
+    const aiResultDiv = document.getElementById('ai-result');
+    const aiResultBox = document.getElementById('ai-result-box');
+    const apiKeyInput = document.getElementById('api-key');
+    const maskKeywordsInput = document.getElementById('mask-keywords');
+    const loader = document.getElementById('loader');
+
+    if (!SpeechRecognition) {
+        alert("お使いのブラウザは音声認識に対応していません。Google Chrome等をご利用ください。");
+    } else {
+        recognition = new SpeechRecognition();
+        recognition.lang = 'ja-JP';
+        recognition.interimResults = true;
+        recognition.continuous = true;
+
+        toggleBtn.addEventListener('click', () => {
+            if (isRecording) {
+                recognition.stop();
+            } else {
+                finalText = ''; 
+                resultDiv.innerHTML = '';
+                aiResultBox.style.display = 'none';
+                aiBtn.style.display = 'none';
+                linkBtn.style.display = 'none';
+                recognition.start();
+            }
+        });
+
+        recognition.onstart = () => {
+            isRecording = true;
+            toggleBtn.textContent = '⏹️ 録音停止';
+            toggleBtn.classList.add('recording');
+            statusDiv.textContent = '🔴 録音中...';
+        };
+
+        recognition.onend = () => {
+            isRecording = false;
+            toggleBtn.textContent = '🎤 録音開始';
+            toggleBtn.classList.remove('recording');
+            statusDiv.textContent = 'マイクの準備ができています';
+            if (finalText.trim().length > 0) {
+                aiBtn.style.display = 'block';
+                linkBtn.style.display = 'block';
+            }
+        };
+
+        recognition.onresult = (event) => {
+            let interimText = '';
+            let currentFinal = '';
+            for (let i = event.resultIndex; i < event.results.length; i++) {
+                if (event.results[i].isFinal) {
+                    currentFinal += event.results[i][0].transcript + '\n';
+                } else {
+                    interimText = event.results[i][0].transcript;
+                }
+            }
+            finalText += currentFinal;
+            resultDiv.innerHTML = '<span>' + finalText + '</span><span class="interim-text">' + interimText + '</span>';
+        };
+    }
+
+    // 匿名化処理
+    const applyMasking = (text) => {
+        const keywordsStr = maskKeywordsInput.value.trim();
+        if (!keywordsStr) return text;
+        const keywords = keywordsStr.split(',').map(k => k.trim()).filter(k => k !== '');
+        let maskedText = text;
+        keywords.forEach(keyword => {
+            const regex = new RegExp(keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
+            maskedText = maskedText.replace(regex, '【Aさん/伏字】');
+        });
+        return maskedText;
+    };
+
+    // 1. この画面でAI分類する
+    aiBtn.addEventListener('click', async () => {
+        const apiKey = apiKeyInput.value.trim();
+        if (!apiKey) return alert("APIキーを入力してください。");
+
+        const safeText = applyMasking(finalText);
+        const prompt = `介護アセスメント23項目に分類し、固有名詞は匿名化してください。\n\n【テキスト】\n${safeText}`;
+
+        aiBtn.disabled = true;
+        loader.style.display = 'inline-block';
+        aiResultBox.style.display = 'block';
+        aiResultDiv.innerHTML = "AI分析中...";
+
+        try {
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+            });
+            const data = await response.json();
+            if (data.error) throw new Error(data.error.message);
+            aiResultDiv.innerHTML = data.candidates[0].content.parts[0].text.replace(/\n/g, '<br>');
+        } catch (e) {
+            aiResultDiv.innerHTML = "エラー: " + e.message;
+        } finally {
+            aiBtn.disabled = false;
+            loader.style.display = 'none';
+        }
+    });
+
+    // 2. コピーして外部リンクを開く
+    linkBtn.addEventListener('click', () => {
+        const safeText = applyMasking(finalText);
+        navigator.clipboard.writeText(safeText).then(() => {
+            alert("匿名化されたテキストをコピーしました！\nこのあと開くGeminiの画面で「貼り付け」てください。");
+            window.open(geminiLink, '_blank');
+        });
+    });
+</script>
+</body>
+</html>
